@@ -3,13 +3,11 @@ import 'package:dio/dio.dart';
 class DownloadRequest {
   final String url;
   final String path;
+  final Map<String, dynamic>? headers;
   var cancelToken = CancelToken();
   var forceDownload = false;
 
-  DownloadRequest(
-    this.url,
-    this.path,
-  );
+  DownloadRequest(this.url, this.path, {this.headers});
 
   @override
   bool operator ==(Object other) =>

@@ -39,7 +39,7 @@ class DownloadManager {
       };
 
   Future<void> download(String url, String savePath, cancelToken,
-      {forceDownload = false}) async {
+      {forceDownload = false, Map<String, dynamic>? headers}) async {
     late String partialFilePath;
     late File partialFile;
     try {
@@ -72,10 +72,19 @@ class DownloadManager {
 
         var partialFileLength = await partialFile.length();
 
+        final Map<String, dynamic> requestHeaders = {};
+
+        if (headers != null) {
+          requestHeaders.addAll(headers);
+        }
+
+        requestHeaders
+            .addAll({HttpHeaders.rangeHeader: 'bytes=$partialFileLength-'});
+
         var response = await dio.download(url, partialFilePath + tempExtension,
             onReceiveProgress: createCallback(url, partialFileLength),
             options: Options(
-              headers: {HttpHeaders.rangeHeader: 'bytes=$partialFileLength-'},
+              headers: requestHeaders,
             ),
             cancelToken: cancelToken,
             deleteOnError: true);
@@ -94,7 +103,8 @@ class DownloadManager {
         var response = await dio.download(url, partialFilePath,
             onReceiveProgress: createCallback(url, 0),
             cancelToken: cancelToken,
-            deleteOnError: false);
+            deleteOnError: false,
+            options: Options(headers: headers));
 
         if (response.statusCode == HttpStatus.ok) {
           await partialFile.rename(savePath);
@@ -145,7 +155,8 @@ class DownloadManager {
     }
   }
 
-  Future<DownloadTask?> addDownload(String url, String savedDir) async {
+  Future<DownloadTask?> addDownload(String url, String savedDir,
+      {Map<String, dynamic>? headers}) async {
     if (url.isNotEmpty) {
       if (savedDir.isEmpty) {
         savedDir = ".";
@@ -156,7 +167,8 @@ class DownloadManager {
           ? savedDir + Platform.pathSeparator + getFileNameFromUrl(url)
           : savedDir;
 
-      return _addDownloadRequest(DownloadRequest(url, downloadFilename));
+      return _addDownloadRequest(
+          DownloadRequest(url, downloadFilename, headers: headers));
     }
   }
 
@@ -173,7 +185,8 @@ class DownloadManager {
       }
     }
 
-    _queue.add(DownloadRequest(downloadRequest.url, downloadRequest.path));
+    _queue.add(DownloadRequest(downloadRequest.url, downloadRequest.path,
+        headers: downloadRequest.headers));
     var task = DownloadTask(_queue.last);
 
     _cache[downloadRequest.url] = task;
@@ -379,7 +392,8 @@ class DownloadManager {
       var currentRequest = _queue.removeFirst();
 
       download(
-          currentRequest.url, currentRequest.path, currentRequest.cancelToken);
+          currentRequest.url, currentRequest.path, currentRequest.cancelToken,
+          headers: currentRequest.headers);
 
       await Future.delayed(Duration(milliseconds: 500), null);
     }
